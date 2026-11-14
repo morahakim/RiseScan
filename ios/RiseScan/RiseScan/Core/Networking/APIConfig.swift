@@ -8,7 +8,5 @@
 import Foundation
 
 enum APIConfig {
-    static let baseURL = URL(
-        string: "http://172.20.10.2:8000"
-    )!
+    static let baseURL = LocalConfig.baseURL
 }

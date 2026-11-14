@@ -1,11 +1,29 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# Environment
 .env
+.env.*
+!.env.example
+
+# Xcode
 DerivedData/
 xcuserdata/
-.DS_Store
+*.xcuserstate
+*.xcscmblueprint
+
+# Build
 .build/
 build/
-*.xcuserstate
+
+# macOS
+.DS_Store
+
+# Local configuration
+ios/**/LocalConfig.swift
+
+# Generated archives
 *.zip
