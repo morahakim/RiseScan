@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		378EE3E030A83BC700CB67AE /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 378EE3DF30A83BC700CB67AE /* ZIPFoundation */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		378EE38730A80C5200CB67AE /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -65,6 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				378EE3E030A83BC700CB67AE /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,6 +130,7 @@
 			);
 			name = RiseScan;
 			packageProductDependencies = (
+				378EE3DF30A83BC700CB67AE /* ZIPFoundation */,
 			);
 			productName = RiseScan;
 			productReference = 378EE37930A80C5000CB67AE /* RiseScan.app */;
@@ -208,6 +214,9 @@
 			);
 			mainGroup = 378EE37030A80C5000CB67AE;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				378EE3DE30A83BC700CB67AE /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 378EE37A30A80C5000CB67AE /* Products */;
 			projectDirPath = "";
@@ -595,6 +604,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		378EE3DE30A83BC700CB67AE /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.20;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		378EE3DF30A83BC700CB67AE /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 378EE3DE30A83BC700CB67AE /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 378EE37130A80C5000CB67AE /* Project object */;
 }
