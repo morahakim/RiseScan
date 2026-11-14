@@ -1,0 +1,18 @@
+{
+  "files": {
+    "Engineering_iOS_Assessment.jpg": {
+      "sha256": "d2ff65ca61e4d7dc9cec1bd691dfd9cb35526f02b21022b4351e4d08ad764e26",
+      "bytes": 1784895
+    },
+    "Engineering_iOS_Assessment.mtl": {
+      "sha256": "e6d8d261d76b0673cab32cfbc5965ca26e6515d16a00371572a06e367c0d13e2",
+      "bytes": 122
+    },
+    "Engineering_iOS_Assessment.obj": {
+      "sha256": "fdc2a5b05d5c5540ced34a95665d9b4f957c679a714a572d556c92e5d18e27f1",
+      "bytes": 45532003
+    }
+  },
+  "obj_vertex_records": 316232,
+  "obj_face_records": 632468
+}

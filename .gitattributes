@@ -1,0 +1,2 @@
+# keep the sample scan byte-for-byte (line endings matter for the checksums)
+sample_scan/* -text

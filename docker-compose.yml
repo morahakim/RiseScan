@@ -1,0 +1,39 @@
+services:
+  minio:
+    # S3-compatible storage. (Upstream minio/minio images are no longer published; this is a frozen MinIO build.)
+    image: bitnamilegacy/minio:latest
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_DEFAULT_BUCKETS: ${S3_BUCKET:-scans}
+    ports: ["9000:9000", "127.0.0.1:9001:9001"]   # S3 API reachable from the phone; web console only from this machine
+    volumes: [miniodata:/bitnami/minio/data]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    cpus: 0.5
+    mem_limit: 1g
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      S3_ENDPOINT_URL: http://minio:9000
+      # host that presigned URLs are signed for (see API.md); a real device needs the laptop's LAN address or a tunnel
+      S3_PUBLIC_ENDPOINT_URL: ${S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
+      S3_BUCKET: ${S3_BUCKET:-scans}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_REGION: ap-south-1
+      AWS_DEFAULT_REGION: ap-south-1
+    ports: ["${BACKEND_PORT:-8000}:8000"]
+    cpus: 1.5
+    mem_limit: 3g
+
+volumes:
+  miniodata:

@@ -1,0 +1,14 @@
+# The limits your verify_object is judged under, to try it locally (see README.md, Helpers):
+#   docker compose -f docker-compose.yml -f docker-compose.strict.yml up -d --build
+#   python tools/large_object_check.py
+# Server limits: 512 MiB RAM, no swap, read-only filesystem with 64 MiB of /tmp, no capabilities.
+# Holding the whole object in memory kills the server (it restarts with empty state); copying it to /tmp
+# runs out of space. `docker compose up -d --build` without this file goes back to the normal limits.
+services:
+  backend:
+    mem_limit: 512m
+    memswap_limit: 512m          # equal to mem_limit: no swap
+    read_only: true
+    tmpfs: ["/tmp:size=64m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
