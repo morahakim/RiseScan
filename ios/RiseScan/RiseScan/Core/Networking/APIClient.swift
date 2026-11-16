@@ -11,6 +11,7 @@ import Foundation
 enum APIError: Error {
     case invalidResponse
     case serverError(Int)
+    case missingETag
 }
 
 final class APIClient {

@@ -50,3 +50,40 @@ struct UploadPart: Decodable, Identifiable {
     }
 }
 
+struct CompleteUploadRequest: Encodable {
+    let parts: [CompletedUploadPart]
+    let sha256: String
+}
+
+struct CompletedUploadPart: Encodable {
+    let partNumber: Int
+    let etag: String
+
+    enum CodingKeys: String, CodingKey {
+        case partNumber = "part_number"
+        case etag
+    }
+}
+
+struct EmptyResponse: Decodable {}
+
+struct CompleteUploadResponse: Decodable {
+    let status: String
+    let reason: String?
+}
+
+
+struct UploadStatusResponse: Decodable {
+    let status: String
+    let parts: [UploadedPartStatus]
+}
+
+struct UploadedPartStatus: Decodable {
+    let partNumber: Int
+    let etag: String
+
+    enum CodingKeys: String, CodingKey {
+        case partNumber = "part_number"
+        case etag
+    }
+}
