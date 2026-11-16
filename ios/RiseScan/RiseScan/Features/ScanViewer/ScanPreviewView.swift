@@ -9,6 +9,8 @@ import SwiftUI
 import RealityKit
 
 struct ScanPreviewView: UIViewRepresentable {
+    
+    var onPreviewCreated: ((UIImage) -> Void)? = nil
 
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(
@@ -45,11 +47,24 @@ struct ScanPreviewView: UIViewRepresentable {
                     -center.y * scale,
                     -center.z * scale - 2.0
                 )
+                
+                entity.generateCollisionShapes(recursive: true)
 
                 let anchor = AnchorEntity(world: .zero)
                 anchor.addChild(entity)
 
                 arView.scene.addAnchor(anchor)
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    arView.snapshot(saveToHDR: false) { image in
+                        guard let image else {
+                            print("Snapshot failed")
+                            return
+                        }
+
+                        onPreviewCreated?(image)
+                    }
+                }
             } catch {
                 print("Model display failed:", error)
             }

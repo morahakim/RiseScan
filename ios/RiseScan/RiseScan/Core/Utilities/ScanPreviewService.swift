@@ -243,5 +243,46 @@ final class ScanPreviewService {
         return entity
     }
 
+    @MainActor
+    func savePreview(_ image: UIImage) throws -> URL {
+        let maxDimension: CGFloat = 1024
+
+        let imageSize = image.size
+        let scale = min(
+            1,
+            maxDimension / max(imageSize.width, imageSize.height)
+        )
+
+        let targetSize = CGSize(
+            width: imageSize.width * scale,
+            height: imageSize.height * scale
+        )
+
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+
+        let resizedImage = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+
+        guard let data = resizedImage.jpegData(compressionQuality: 0.7) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+
+        let folder = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        )[0]
+
+        try FileManager.default.createDirectory(
+            at: folder,
+            withIntermediateDirectories: true
+        )
+
+        let previewURL = folder.appendingPathComponent("scan-preview.jpg")
+
+        try data.write(to: previewURL, options: .atomic)
+
+        return previewURL
+    }
 
 }
