@@ -20,11 +20,12 @@ struct ContentView: View {
         VStack(spacing: 12) {
             ScanPreviewView(modelFolderURL: downloadedFolderURL) { image in
                 do {
-                    let url = try ScanPreviewService().savePreview(image)
-                    let size = try FileManager.default
-                        .attributesOfItem(atPath: url.path)[.size] as? Int ?? 0
+                    let previewURL = try ScanPreviewService().savePreview(image)
 
-                    print("Preview saved:", url.lastPathComponent)
+                    let size = try FileManager.default
+                        .attributesOfItem(atPath: previewURL.path)[.size] as? Int ?? 0
+
+                    print("Preview saved:", previewURL.lastPathComponent)
                     print("Preview size:", size, "bytes")
 
                     let scanID = getScanID()
@@ -34,25 +35,38 @@ struct ContentView: View {
                         do {
                             let uploadService = UploadService()
 
+                            // 1. Upload preview terlebih dahulu
+                            let previewUploadID = try await uploadService.uploadFile(
+                                fileURL: previewURL,
+                                scanID: scanID,
+                                kind: .preview
+                            )
+
+                            print("Preview upload completed:", previewUploadID)
+
+                            // 2. Buat ZIP original
                             let originalURL = try ScanArchiveService()
                                 .createOriginalZip(scanID: scanID)
 
-                            let uploadID = try await uploadService.uploadFile(
+                            // 3. Upload original setelah preview berhasil
+                            let newOriginalUploadID = try await uploadService.uploadFile(
                                 fileURL: originalURL,
                                 scanID: scanID,
                                 kind: .original
                             )
 
-                            originalUploadID = uploadID
+                            // 4. Simpan ID dan SHA-256 original
+                            originalUploadID = newOriginalUploadID
                             originalSHA256 = try FileHashService()
                                 .sha256(of: originalURL)
 
-                            print("Original upload completed:", uploadID)
+                            print("Original upload completed:", newOriginalUploadID)
 
                         } catch {
                             print("Upload failed:", error)
                         }
                     }
+
                 } catch {
                     print("Preview save failed:", error)
                 }
@@ -61,6 +75,7 @@ struct ContentView: View {
 
             Button(isDownloading ? "Downloading..." : "Download Original") {
                 print("Download button tapped")
+
                 Task {
                     await downloadOriginal()
                 }
@@ -70,6 +85,7 @@ struct ContentView: View {
             Text(downloadMessage)
                 .font(.caption)
         }
+
     }
     
     private func getScanID() -> UUID {
