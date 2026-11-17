@@ -9,58 +9,66 @@ import SwiftUI
 
 struct ContentView: View {
     @AppStorage("scanID") private var scanIDString = ""
+    @AppStorage("originalUploadID") private var originalUploadID = ""
+    @AppStorage("originalSHA256") private var originalSHA256 = ""
+    
+    @State private var downloadedFolderURL: URL?
+    @State private var downloadMessage = ""
+    @State private var isDownloading = false
 
     var body: some View {
-        ScanPreviewView { image in
-            do {
-                let url = try ScanPreviewService().savePreview(image)
+        VStack(spacing: 12) {
+            ScanPreviewView(modelFolderURL: downloadedFolderURL) { image in
+                do {
+                    let url = try ScanPreviewService().savePreview(image)
+                    let size = try FileManager.default
+                        .attributesOfItem(atPath: url.path)[.size] as? Int ?? 0
 
-                let size = try FileManager.default
-                    .attributesOfItem(atPath: url.path)[.size] as? Int ?? 0
+                    print("Preview saved:", url.lastPathComponent)
+                    print("Preview size:", size, "bytes")
 
-                print("Preview saved:", url.lastPathComponent)
-                print("Preview size:", size, "bytes")
-                
-                let scanID = getScanID()
-                print("Current scan ID:", scanID.uuidString)
+                    let scanID = getScanID()
+                    print("Current scan ID:", scanID.uuidString)
 
-                Task {
-                    do {
-                        
-                        let uploadService = UploadService()
+                    Task {
+                        do {
+                            let uploadService = UploadService()
 
-                        try await uploadService.uploadFile(
-                            fileURL: url,
-                            scanID: scanID,
-                            kind: .preview
-                        )
+                            let originalURL = try ScanArchiveService()
+                                .createOriginalZip(scanID: scanID)
 
-                        print("Preview upload completed")
+                            let uploadID = try await uploadService.uploadFile(
+                                fileURL: originalURL,
+                                scanID: scanID,
+                                kind: .original
+                            )
 
-                        let originalURL = try ScanArchiveService()
-                            .createOriginalZip(scanID: scanID)
+                            originalUploadID = uploadID
+                            originalSHA256 = try FileHashService()
+                                .sha256(of: originalURL)
 
-                        print("Original ZIP:", originalURL.lastPathComponent)
-                        print("Current scan ID:", scanIDString)
+                            print("Original upload completed:", uploadID)
 
-                        try await uploadService.uploadFile(
-                            fileURL: originalURL,
-                            scanID: scanID,
-                            kind: .original
-                        )
-
-                        print("Original upload completed")
-
-                    } catch {
-                        print("Upload failed:", error)
+                        } catch {
+                            print("Upload failed:", error)
+                        }
                     }
+                } catch {
+                    print("Preview save failed:", error)
                 }
-
-            } catch {
-                print("Preview save failed:", error)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Button(isDownloading ? "Downloading..." : "Download Original") {
+                Task {
+                    await downloadOriginal()
+                }
+            }
+            .disabled(originalUploadID.isEmpty || isDownloading)
+
+            Text(downloadMessage)
+                .font(.caption)
         }
-        .ignoresSafeArea()
     }
     
     private func getScanID() -> UUID {
@@ -71,6 +79,38 @@ struct ContentView: View {
         let newID = UUID()
         scanIDString = newID.uuidString
         return newID
+    }
+    
+    private func downloadOriginal() async {
+        isDownloading = true
+        downloadMessage = "Downloading..."
+
+        defer {
+            isDownloading = false
+        }
+
+        do {
+            let service = DownloadService()
+
+            let zipURL = try await service.downloadOriginal(
+                uploadID: originalUploadID,
+                expectedSHA256: originalSHA256
+            )
+
+            let folderURL = try service.extractOriginal(
+                from: zipURL,
+                uploadID: originalUploadID
+            )
+
+            downloadedFolderURL = folderURL
+            downloadMessage = "Download verified successfully"
+
+            print("Downloaded folder:", folderURL.path)
+
+        } catch {
+            downloadMessage = "Download failed: \(error.localizedDescription)"
+            print("Download failed:", error)
+        }
     }
 }
 

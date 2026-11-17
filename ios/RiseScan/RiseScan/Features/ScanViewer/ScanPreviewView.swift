@@ -9,8 +9,13 @@ import SwiftUI
 import RealityKit
 
 struct ScanPreviewView: UIViewRepresentable {
-    
+
+    var modelFolderURL: URL? = nil
     var onPreviewCreated: ((UIImage) -> Void)? = nil
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
 
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(
@@ -19,10 +24,40 @@ struct ScanPreviewView: UIViewRepresentable {
             automaticallyConfigureSession: false
         )
 
+        context.coordinator.modelFolderURL = modelFolderURL
+
+        loadModel(
+            into: arView,
+            from: modelFolderURL,
+            createPreview: modelFolderURL == nil
+        )
+
+        return arView
+    }
+
+    func updateUIView(_ uiView: ARView, context: Context) {
+        guard context.coordinator.modelFolderURL != modelFolderURL else {
+            return
+        }
+
+        context.coordinator.modelFolderURL = modelFolderURL
+
+        loadModel(
+            into: uiView,
+            from: modelFolderURL,
+            createPreview: false
+        )
+    }
+
+    private func loadModel(
+        into arView: ARView,
+        from folderURL: URL?,
+        createPreview: Bool
+    ) {
         Task { @MainActor in
             do {
                 let entity = try await ScanPreviewService()
-                    .makeTexturedModelEntity()
+                    .makeTexturedModelEntity(from: folderURL)
 
                 let bounds = entity.visualBounds(relativeTo: nil)
                 let center = bounds.center
@@ -33,10 +68,14 @@ struct ScanPreviewView: UIViewRepresentable {
                     max(extents.y, extents.z)
                 )
 
+                guard maxDimension > 0 else {
+                    return
+                }
+
                 let scale = 1.5 / maxDimension
 
                 entity.scale = SIMD3<Float>(repeating: scale)
-                
+
                 entity.transform.rotation = simd_quatf(
                     angle: .pi / 2,
                     axis: SIMD3<Float>(0, 1, 0)
@@ -47,13 +86,18 @@ struct ScanPreviewView: UIViewRepresentable {
                     -center.y * scale,
                     -center.z * scale - 2.0
                 )
-                
+
                 entity.generateCollisionShapes(recursive: true)
 
                 let anchor = AnchorEntity(world: .zero)
                 anchor.addChild(entity)
 
+                arView.scene.anchors.removeAll()
                 arView.scene.addAnchor(anchor)
+
+                guard createPreview else {
+                    return
+                }
 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                     arView.snapshot(saveToHDR: false) { image in
@@ -65,14 +109,15 @@ struct ScanPreviewView: UIViewRepresentable {
                         onPreviewCreated?(image)
                     }
                 }
+
             } catch {
                 print("Model display failed:", error)
             }
         }
-
-        return arView
     }
 
-    func updateUIView(_ uiView: ARView, context: Context) {}
+    final class Coordinator {
+        var modelFolderURL: URL?
+    }
 }
 

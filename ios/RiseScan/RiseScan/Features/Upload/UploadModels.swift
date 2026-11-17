@@ -87,3 +87,13 @@ struct UploadedPartStatus: Decodable {
         case etag
     }
 }
+
+struct DownloadResponse: Decodable {
+    let url: URL
+    let expiresIn: Int
+
+    enum CodingKeys: String, CodingKey {
+        case url
+        case expiresIn = "expires_in"
+    }
+}

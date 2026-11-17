@@ -12,12 +12,22 @@ import UIKit
 
 final class ScanPreviewService {
 
-    func loadModel() throws -> MDLAsset {
-        guard let objURL = Bundle.main.url(
-            forResource: "Engineering_iOS_Assessment",
-            withExtension: "obj"
-        ) else {
-            throw CocoaError(.fileNoSuchFile)
+    func loadModel(from folderURL: URL? = nil) throws -> MDLAsset {
+        let objURL: URL
+
+        if let folderURL {
+            objURL = folderURL.appendingPathComponent(
+                "Engineering_iOS_Assessment.obj"
+            )
+        } else {
+            guard let bundleURL = Bundle.main.url(
+                forResource: "Engineering_iOS_Assessment",
+                withExtension: "obj"
+            ) else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+
+            objURL = bundleURL
         }
 
         let asset = MDLAsset(url: objURL)
@@ -125,8 +135,8 @@ final class ScanPreviewService {
     }
     
     
-    func makeMeshResource() throws -> MeshResource {
-        let asset = try loadModel()
+    func makeMeshResource(from folderURL: URL? = nil) throws -> MeshResource {
+        let asset = try loadModel(from: folderURL)
 
         guard let mesh = asset.object(at: 0) as? MDLMesh,
               let submesh = mesh.submeshes?.firstObject as? MDLSubmesh else {
@@ -202,16 +212,25 @@ final class ScanPreviewService {
     
     
     @MainActor
-    func makeTexturedModelEntity() async throws -> ModelEntity {
+    func makeTexturedModelEntity(from folderURL: URL? = nil) async throws -> ModelEntity {
         // Create mesh from OBJ.
-        let mesh = try makeMeshResource()
+        let mesh = try makeMeshResource(from: folderURL)
 
-        // Find JPG texture.
-        guard let textureURL = Bundle.main.url(
-            forResource: "Engineering_iOS_Assessment",
-            withExtension: "jpg"
-        ) else {
-            throw CocoaError(.fileNoSuchFile)
+        let textureURL: URL
+
+        if let folderURL {
+            textureURL = folderURL.appendingPathComponent(
+                "Engineering_iOS_Assessment.jpg"
+            )
+        } else {
+            guard let bundleURL = Bundle.main.url(
+                forResource: "Engineering_iOS_Assessment",
+                withExtension: "jpg"
+            ) else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+
+            textureURL = bundleURL
         }
 
         // Load texture asynchronously.

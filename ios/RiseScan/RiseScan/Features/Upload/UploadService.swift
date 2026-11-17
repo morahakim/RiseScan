@@ -81,7 +81,7 @@ extension UploadService {
         fileURL: URL,
         scanID: UUID,
         kind: UploadKind
-    ) async throws {
+    ) async throws -> String {
         let attributes = try FileManager.default.attributesOfItem(
             atPath: fileURL.path
         )
@@ -109,7 +109,7 @@ extension UploadService {
 
         if status.status == "verified" {
             print("Upload already verified:", kind.rawValue)
-            return
+            return uploadSession.uploadID
         }
 
         var completedParts = status.parts.map {
@@ -157,6 +157,7 @@ extension UploadService {
         }
 
         print("Upload verified:", kind.rawValue)
+        return uploadSession.uploadID
     }
 
     
