@@ -30,14 +30,23 @@ final class ScanPreviewService {
             objURL = bundleURL
         }
 
+        // Check file size.
+        let attributes = try FileManager.default.attributesOfItem(
+            atPath: objURL.path
+        )
+        let fileSize = attributes[.size] as? Int64 ?? 0
+
+        // Measure MDLAsset initialization.
+        let initStart = Date()
         let asset = MDLAsset(url: objURL)
 
-        guard asset.count > 0 else {
+        // Measure asset parsing/access.
+        let countStart = Date()
+        let objectCount = asset.count
+
+        guard objectCount > 0 else {
             throw CocoaError(.fileReadCorruptFile)
         }
-
-        print("Model loaded successfully")
-        print("Object count:", asset.count)
 
         return asset
     }
@@ -58,17 +67,6 @@ final class ScanPreviewService {
             forAttributeNamed: MDLVertexAttributeTextureCoordinate
         )
 
-        print("Vertex count:", mesh.vertexCount)
-
-        print("Position format:", position?.format.rawValue ?? -1)
-        print("Position stride:", position?.stride ?? -1)
-
-        print("Texture format:", texture?.format.rawValue ?? -1)
-        print("Texture stride:", texture?.stride ?? -1)
-
-        print("Index count:", submesh.indexCount)
-        print("Index type:", submesh.indexType.rawValue)
-        print("Geometry type:", submesh.geometryType.rawValue)
     }
     
     func readVertexData() throws {
@@ -106,9 +104,6 @@ final class ScanPreviewService {
             positions.append(position)
             textureCoordinates.append(texture)
         }
-
-        print("Positions:", positions.count)
-        print("Texture coordinates:", textureCoordinates.count)
     }
     
     func readIndices() throws {
@@ -125,23 +120,27 @@ final class ScanPreviewService {
         let indices = indexBuffer.map().bytes
             .assumingMemoryBound(to: UInt32.self)
 
-        print("First 9 indices:")
-
         for index in 0..<9 {
             print(indices[index])
         }
-
-        print("Total indices:", indexCount)
     }
     
     
     func makeMeshResource(from folderURL: URL? = nil) throws -> MeshResource {
+        let totalStart = Date()
+
+        // Load OBJ model.
+        let loadStart = Date()
         let asset = try loadModel(from: folderURL)
+        print("ModelIO loading time:", Date().timeIntervalSince(loadStart))
 
         guard let mesh = asset.object(at: 0) as? MDLMesh,
               let submesh = mesh.submeshes?.firstObject as? MDLSubmesh else {
             throw CocoaError(.fileReadCorruptFile)
         }
+
+        // Read vertex attributes.
+        let attributeStart = Date()
 
         guard let positionData = mesh.vertexAttributeData(
             forAttributeNamed: MDLVertexAttributePosition
@@ -151,33 +150,32 @@ final class ScanPreviewService {
             throw CocoaError(.fileReadCorruptFile)
         }
 
-        // Read vertex positions.
-        let positionBuffer = positionData.dataStart
-        var positions: [SIMD3<Float>] = []
+        // Read vertex positions and texture coordinates.
+        let vertexStart = Date()
 
-        for index in 0..<mesh.vertexCount {
-            let position = positionBuffer
+        let positionBuffer = positionData.dataStart
+        let positions: [SIMD3<Float>] = (0..<mesh.vertexCount).map { index in
+            let pointer = positionBuffer
                 .advanced(by: index * positionData.stride)
                 .assumingMemoryBound(to: SIMD3<Float>.self)
-                .pointee
 
-            positions.append(position)
+            return pointer.pointee
         }
 
-        // Read texture coordinates.
         let textureBuffer = textureData.dataStart
-        var textureCoordinates: [SIMD2<Float>] = []
-
-        for index in 0..<mesh.vertexCount {
-            let texture = textureBuffer
+        let textureCoordinates: [SIMD2<Float>] = (0..<mesh.vertexCount).map { index in
+            let pointer = textureBuffer
                 .advanced(by: index * textureData.stride)
                 .assumingMemoryBound(to: SIMD2<Float>.self)
-                .pointee
 
-            textureCoordinates.append(texture)
+            return pointer.pointee
         }
 
+        print("Vertex reading time:", Date().timeIntervalSince(vertexStart))
+
         // Read triangle indices.
+        let indexStart = Date()
+
         guard submesh.indexType.rawValue == 32 else {
             throw CocoaError(.fileReadUnsupportedScheme)
         }
@@ -192,6 +190,8 @@ final class ScanPreviewService {
             )
         )
 
+        print("Index reading time:", Date().timeIntervalSince(indexStart))
+
         // Build RealityKit mesh.
         var descriptor = MeshDescriptor(name: "ScanMesh")
         descriptor.positions = MeshBuffers.Positions(positions)
@@ -200,21 +200,32 @@ final class ScanPreviewService {
         )
         descriptor.primitives = .triangles(indices)
 
+        let generateStart = Date()
         let resource = try MeshResource.generate(from: [descriptor])
-
-        print("RealityKit mesh created successfully")
-        print("Position count:", positions.count)
-        print("Texture count:", textureCoordinates.count)
-        print("Index count:", indices.count)
 
         return resource
     }
+
     
     
     @MainActor
-    func makeTexturedModelEntity(from folderURL: URL? = nil) async throws -> ModelEntity {
-        // Create mesh from OBJ.
+    func makeTexturedModelEntity(
+        from folderURL: URL? = nil
+    ) async throws -> ModelEntity {
+
+        let startTime = Date()
+
+        print("Loading mesh started")
+
         let mesh = try makeMeshResource(from: folderURL)
+
+        print(
+            "Mesh creation finished:",
+            Date().timeIntervalSince(startTime),
+            "seconds"
+        )
+
+        let textureStart = Date()
 
         let textureURL: URL
 
@@ -233,7 +244,6 @@ final class ScanPreviewService {
             textureURL = bundleURL
         }
 
-        // Load texture asynchronously.
         guard let image = UIImage(contentsOfFile: textureURL.path),
               let cgImage = image.cgImage else {
             throw CocoaError(.fileReadCorruptFile)
@@ -244,20 +254,28 @@ final class ScanPreviewService {
             options: .init(semantic: .color)
         )
 
-        // Create material with texture.
+        print(
+            "Texture creation finished:",
+            Date().timeIntervalSince(textureStart),
+            "seconds"
+        )
+
         var material = SimpleMaterial()
         material.color = .init(
             tint: .white,
             texture: .init(texture)
         )
 
-        // Combine mesh and material.
         let entity = ModelEntity(
             mesh: mesh,
             materials: [material]
         )
 
-        print("Textured model created successfully")
+        print(
+            "Total model creation:",
+            Date().timeIntervalSince(startTime),
+            "seconds"
+        )
 
         return entity
     }

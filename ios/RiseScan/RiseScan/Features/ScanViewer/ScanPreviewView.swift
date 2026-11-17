@@ -55,6 +55,8 @@ struct ScanPreviewView: UIViewRepresentable {
         createPreview: Bool
     ) {
         Task { @MainActor in
+            let startTime = Date()
+
             do {
                 let entity = try await ScanPreviewService()
                     .makeTexturedModelEntity(from: folderURL)
@@ -87,8 +89,7 @@ struct ScanPreviewView: UIViewRepresentable {
                     -center.z * scale - 2.0
                 )
 
-                entity.generateCollisionShapes(recursive: true)
-
+                // Collision tidak dibuat untuk mengurangi waktu loading.
                 let anchor = AnchorEntity(world: .zero)
                 anchor.addChild(entity)
 

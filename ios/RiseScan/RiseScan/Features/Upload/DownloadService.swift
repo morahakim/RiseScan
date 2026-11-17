@@ -11,7 +11,11 @@ import ZIPFoundation
 final class DownloadService {
     private let apiClient = APIClient.shared
 
-    func downloadOriginal(uploadID: String, expectedSHA256: String) async throws -> URL {
+    func downloadOriginal(
+        uploadID: String,
+        expectedSHA256: String
+    ) async throws -> URL {
+
         let response: DownloadResponse = try await apiClient.get(
             "uploads/\(uploadID)/download"
         )
@@ -39,14 +43,6 @@ final class DownloadService {
             "\(uploadID)-download.zip"
         )
 
-        let downloadedSHA256 = try FileHashService()
-            .sha256(of: destinationURL)
-
-        guard downloadedSHA256 == expectedSHA256 else {
-            try? FileManager.default.removeItem(at: destinationURL)
-            throw DownloadError.checksumMismatch
-        }
-        
         if FileManager.default.fileExists(atPath: destinationURL.path) {
             try FileManager.default.removeItem(at: destinationURL)
         }
@@ -56,8 +52,17 @@ final class DownloadService {
             to: destinationURL
         )
 
+        let downloadedSHA256 = try FileHashService()
+            .sha256(of: destinationURL)
+
+        guard downloadedSHA256 == expectedSHA256 else {
+            try? FileManager.default.removeItem(at: destinationURL)
+            throw DownloadError.checksumMismatch
+        }
+
         return destinationURL
     }
+
     
     func extractOriginal(from zipURL: URL, uploadID: String) throws -> URL {
         let folder = FileManager.default.urls(

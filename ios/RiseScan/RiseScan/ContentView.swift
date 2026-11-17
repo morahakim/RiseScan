@@ -60,6 +60,7 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Button(isDownloading ? "Downloading..." : "Download Original") {
+                print("Download button tapped")
                 Task {
                     await downloadOriginal()
                 }
