@@ -219,12 +219,6 @@ final class ScanPreviewService {
 
         let mesh = try makeMeshResource(from: folderURL)
 
-        print(
-            "Mesh creation finished:",
-            Date().timeIntervalSince(startTime),
-            "seconds"
-        )
-
         let textureStart = Date()
 
         let textureURL: URL
@@ -254,12 +248,6 @@ final class ScanPreviewService {
             options: .init(semantic: .color)
         )
 
-        print(
-            "Texture creation finished:",
-            Date().timeIntervalSince(textureStart),
-            "seconds"
-        )
-
         var material = SimpleMaterial()
         material.color = .init(
             tint: .white,
@@ -269,12 +257,6 @@ final class ScanPreviewService {
         let entity = ModelEntity(
             mesh: mesh,
             materials: [material]
-        )
-
-        print(
-            "Total model creation:",
-            Date().timeIntervalSince(startTime),
-            "seconds"
         )
 
         return entity
