@@ -1,97 +1,319 @@
-# Rise Bionics: Scan Upload
+# RiseScan
 
-**Time:** one week.
+A native iOS application for uploading, verifying, downloading, and viewing 3D scan assets through a resumable multipart upload workflow.
 
-## The problem
+## Overview
 
-A clinician scans a patient's limb on an iPad and sends it to our servers. Clinic connectivity in India is often a weak mobile signal, the app gets backgrounded, and the phone can be killed at any moment. The scan has to arrive **exactly as scanned**, and the fabricator should see something quickly.
+RiseScan is built to demonstrate reliable transfer of large 3D scan files under constrained network conditions.
 
-`sample_scan/` holds one scan (OBJ + MTL + texture) to use as the capture output. You don't need a Structure Sensor for the assignment.
+The application uses a sample 3D scan, so no external scanning hardware or LiDAR sensor is required.
 
-## What we need
+### Key Features
 
-**A mock server is provided.** `docker compose up` starts it (`backend/`, FastAPI) with MinIO as the S3 storage. It
-implements `API.md` and works out of the box, except for one piece you write (below).
+- **3D Preview:** Loads and displays a textured 3D model on the iOS device.
+- **Preview-first Upload:** Generates and uploads a lightweight JPEG preview before uploading the original scan.
+- **Lossless Original Archive:** Packages the original OBJ, MTL, and texture assets into a ZIP archive without recompressing the source files.
+- **Multipart Upload:** Splits the original archive into parts and uploads them independently.
+- **Resumable Upload:** Checks server-side upload status and skips parts that have already been uploaded.
+- **SHA-256 Integrity Verification:** Calculates and verifies file checksums on the client and server.
+- **Original Download:** Downloads the verified original archive, checks its checksum, extracts it, and displays the 3D model.
 
-**(a) An iOS client** that, against that server:
+## Technology Stack
 
-- **Packages the scan.** Zips the scan on the device (the `original`) and makes a small lossy **preview** from it.
-- **Uploads preview first.** The preview goes up first, then the full lossless original follows in the (background `URLSession`). The app shows which step it is on. The original is never replaced by the preview.
-- **Resumes.** If the app is killed or the network drops, uploading continues where it stopped, 
-  (a part that was in flight is re-sent, finished parts are not). There is no abort, and re-initiating a scan whose upload is in progress with a zip of another size is a `409`: keep the exact zip file (or make the zip byte-deterministic) with its size and SHA-256 in your persisted state, or use a new `scan_id`. A verified upload is
-  final (see `API.md`): a scan whose bytes changed after that needs a new `scan_id`.
-- **Protects integrity.** The app computes the SHA-256 of what it uploads, and verifies that what it downloads
-  matches it.
-- **Round-trips.** The app downloads what was uploaded and shows the mesh in 3D, preview first.
-- Works on a real iPhone or iPad against the server on your laptop, not only the simulator.
+### iOS
 
-**(b) One server task:** implement `verify_object` in `backend/app/checksum.py`, which `complete` calls to check the
-assembled object. Until then `complete` returns `501`. This is the only server change we expect; everything else in
-`backend/` is ours, and you shouldn't need to touch it. Your `verify_object` is also run against a very large object
-(about 1 GiB) on a server limited to 512 MiB of RAM with little temporary disk, so it must stream the object, neither
-reading it whole into memory nor copying it to disk. 
+- Swift
+- SwiftUI
+- URLSession
+- Background URLSession
+- CryptoKit
+- RealityKit
+- Model I/O
+- ZIPFoundation
 
-Tell us what you chose and why (preview format, part handling, what you would change on a slower link).
+Minimum deployment target: **iOS 16.0**
 
-## Test conditions
+### Backend
 
-Everything is judged on a **poor clinic 4G link**: **2 Mbps up, 8 Mbps down, 120 ms round trip**.
-Use Network Link Conditioner (custom profile, 60 ms delay each way) on the device to reproduce it. The server and its
-storage run in `docker compose` capped at **2 CPU cores and 4 GB RAM** in total (the server itself gets 1.5 CPU and
-3 GB), so don't buffer whole files in memory.
+- Python
+- FastAPI
+- MinIO / S3-compatible object storage
+- Docker Compose
 
-Aim for: the preview usable within about a few seconds of starting the upload, and the original finishing in roughly its size divided by the bandwidth, plus 25%. In your README, report what you actually measured.
+## Project Structure
 
-## Scope
+```text
+RiseScan/
+├── backend/
+│   └── app/
+│       └── checksum.py
+├── ios/
+│   ├── README.md
+│   └── RiseScan/
+├── sample_scan/
+├── tools/
+│   ├── check_verify_object.py
+│   ├── large_object_check.py
+│   ├── make_manifest.py
+│   └── verify_bundle.py
+├── API.md
+├── docker-compose.yml
+├── docker-compose.strict.yml
+├── .env.example
+└── trace.json
+```
 
-The app is **one screen**: a 3D view, a progress indicator, and upload and download buttons. We don't care about design or polish, only how the transfer behaves. There is no login and no database design to build. Keep it minimal and tell us what you would do with more time.
+## Architecture
 
-## Rules
+### Upload Workflow
 
-- The zip extracts into a `rise-scan-assignment/` folder; work in it.
-- `docker compose up --build` starts MinIO and the server on `http://localhost:8000`, unless `BACKEND_PORT` is set
-  (`cp .env.example .env` and edit it, or `export BACKEND_PORT=8080`; use another port if 8000 is taken).
-  For a real device, set `S3_PUBLIC_ENDPOINT_URL` the same way to your laptop's LAN address (or a tunnel); see
-  `.env.example` and `API.md`.
-- The server runs `backend/app/checksum.py` as built into its image: after editing it, run
-  `docker compose up -d --build`, or the running server keeps the old code (and `complete` keeps returning `501`).
-  If `complete` returns `500`, its `detail` names the error; `docker compose logs backend` shows the traceback.
-- The storage port 9000 is open to your network with default credentials: use a trusted network, and only the
-  sample scan, never real patient data, on this stack.
-- Use git and commit as you go (this folder comes without history, so `git init` inside `rise-scan-assignment/` first); we read the history. No secrets in the repo.
-- Use any tools you like, AI included. You'll walk us through your code in a follow-up call.
+1. The application loads the sample 3D model.
+2. A lightweight JPEG preview is generated and saved locally.
+3. The preview is uploaded first.
+4. The original OBJ, MTL, and texture files are packaged into a ZIP archive using lossless storage.
+5. The application calculates the original archive's SHA-256 checksum.
+6. The original archive is uploaded using multipart upload.
+7. Before uploading, the client checks the server's upload status.
+8. Already completed parts are skipped; missing parts are uploaded.
+9. The client submits the completed part list to the backend.
+10. The backend verifies the uploaded object's size and SHA-256 checksum.
 
-## Submit
+The original archive is retained locally so that the same scan can reuse the exact same ZIP bytes when resuming an upload.
 
-1. Your work: a zip of your repo (with its `.git` folder), or a link to a repo you share with us (invite us).
-2. A 3–5 minute screen recording **under the throttled profile**: upload, kill the app mid-upload, resume,
-   then download and view. Kill it late in the original upload, once at least two parts have finished, so the resume
-   is visible.
-3. `trace.json` in the repo root: restart the server (`docker compose restart backend`) so it is empty, do exactly
-   one run (the one above), then save it right after: `curl http://localhost:8000/debug/trace > trace.json` (your
-   port if you changed it; see `API.md`, Debug). Only the newest scan in the trace is read, and a run where the app
-   was never killed is flagged.
-4. A README with your handover notes, including your measured latencies.
+### Resume Strategy
 
-## Next
+The upload process uses the server's upload status as the source of truth.
 
-We run automated checks on your `verify_object` and on your `trace.json`, and review your code and recording. If it
-goes well, a call covers your design, a small live change, and questions on AWS, health-data privacy and depth sensors.
+When the application is reopened after an interruption:
 
-## Helpers
+- The client retrieves the existing upload session.
+- Completed parts are identified from the server response.
+- Completed parts are not uploaded again.
+- Missing parts are uploaded.
+- The upload is completed and verified.
 
-- `tools/make_manifest.py` writes `sample_scan/manifest.json` (SHA-256 of every file).
-- `tools/verify_bundle.py downloaded.zip` checks that a downloaded bundle is byte-identical to the originals.
-- `tools/check_verify_object.py` checks your `verify_object` against the running stack's storage (right object, wrong
-  digest, changed byte, size off by one, missing object): `cd backend && uv run python ../tools/check_verify_object.py`
-  (or any Python with `boto3`). It imports your file directly, so it can pass while the running server still has the
-  old code: rebuild with `docker compose up -d --build`. It does not cover the very large object.
-- `tools/large_object_check.py` covers the very large object through the running server: it uploads about 1 GiB of
-  zeros and expects `verified`, then the same with one changed byte and expects `failed`. Start the stack with the
-  limits it is judged under (512 MiB of RAM, read-only filesystem with a 64 MiB `/tmp`), then run it (Python 3.12,
-  standard library only; a few minutes):
-  ```
-  docker compose -f docker-compose.yml -f docker-compose.strict.yml up -d --build
-  python tools/large_object_check.py        # another port: export BACKEND_PORT (or BACKEND_URL) first
-  ```
-  `docker compose up -d --build` (without the second file) goes back to the normal limits.
+This reduces unnecessary data transfer when the network connection is interrupted or the application is terminated.
+
+### Download Workflow
+
+1. The client requests the original object download.
+2. The archive is downloaded from the backend-provided URL.
+3. The client calculates the downloaded file's SHA-256 checksum.
+4. The checksum is compared with the expected checksum.
+5. The ZIP archive is extracted locally.
+6. The extracted 3D model is loaded and displayed using RealityKit.
+
+## Backend Checksum Verification
+
+The backend implements `verify_object` in:
+
+```text
+backend/app/checksum.py
+```
+
+The implementation reads the object incrementally using streamed chunks instead of loading the entire object into memory.
+
+For each chunk, it:
+
+- Updates the SHA-256 hash.
+- Tracks the total number of bytes read.
+- Continues until the object stream is exhausted.
+
+After reading the object, it checks both the actual size and SHA-256 digest against the expected values.
+
+The response body is closed in a `finally` block to ensure resources are released even if an error occurs.
+
+This approach avoids buffering the entire object in memory and is suitable for large objects.
+
+## Requirements
+
+- macOS
+- Xcode
+- Docker Desktop
+- An iPhone or iPad running iOS 16 or later
+- Mac and iOS device connected to the same network
+- Network access to backend and MinIO ports
+
+## Getting Started
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/morahakim/RiseScan.git
+cd RiseScan
+```
+
+### 2. Configure Environment Variables
+
+Create a local environment file:
+
+```bash
+cp .env.example .env
+```
+
+Configure the required backend and MinIO settings in `.env`.
+
+For physical-device testing, make sure the MinIO public endpoint uses an address reachable from the iOS device.
+
+Do not commit `.env` or expose credentials.
+
+### 3. Start Backend and MinIO
+
+```bash
+docker compose up -d
+```
+
+Check container status:
+
+```bash
+docker compose ps
+```
+
+Check backend health:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Expected response:
+
+```json
+{"status":"ok"}
+```
+
+### 4. Configure the iOS API Endpoint
+
+Open the iOS project and update the API base URL in:
+
+```text
+ios/RiseScan/RiseScan/Core/Networking/APIConfig.swift
+```
+
+Use the Mac's LAN IP address instead of `localhost`:
+
+```swift
+static let baseURL = URL(
+    string: "http://<MAC_LAN_IP>:8000"
+)!
+```
+
+The iPhone or iPad must be able to reach this address over the local network.
+
+Also ensure that the MinIO endpoint configured on the backend is reachable from the physical device.
+
+### 5. Run the iOS Application
+
+1. Open the Xcode project under `ios/RiseScan/`.
+2. Select a physical iPhone or iPad as the run destination.
+3. Build and run the application.
+4. Load the sample 3D scan.
+5. Wait for the preview and original uploads to complete.
+
+## Network Testing
+
+The application was tested under a constrained network profile using Apple's Network Link Conditioner.
+
+| Parameter | Configuration |
+|---|---:|
+| Upload bandwidth | 2 Mbps |
+| Download bandwidth | 8 Mbps |
+| Round-trip latency | 120 ms |
+| One-way delay | 60 ms |
+| Packet loss | 0% |
+
+### Resume Test
+
+The resume workflow was tested by terminating the application during an original multipart upload after multiple parts had been uploaded.
+
+The application was reopened and the upload process resumed using the existing server-side upload session.
+
+Previously completed parts were retained, while remaining parts were uploaded before final verification.
+
+## Backend Trace
+
+The backend exposes an upload trace endpoint:
+
+```bash
+curl http://localhost:8000/debug/trace
+```
+
+Save the trace to the repository root:
+
+```bash
+curl http://localhost:8000/debug/trace > trace.json
+```
+
+The trace contains upload session information and events such as:
+
+- Upload initiation
+- Upload status checks
+- Uploaded part snapshots
+- Upload completion
+- Verification status
+- Download requests
+
+`trace.json` is included as supporting evidence of the test run.
+
+## Performance Measurements
+
+Record actual measurements from the constrained network test.
+
+| Operation | Measured Duration |
+|---|---:|
+| Preview upload | TODO |
+| Original upload | TODO |
+| Original download | TODO |
+| SHA-256 verification | TODO |
+| 3D model loading | TODO |
+
+Network profile: 2 Mbps upload / 8 Mbps download / 120 ms RTT.
+
+Measurements should be taken from the actual test run rather than estimated values.
+
+## Validation
+
+Backend checksum verification:
+
+```bash
+python3 tools/check_verify_object.py
+```
+
+Large-object validation:
+
+```bash
+python3 tools/large_object_check.py
+```
+
+Bundle validation:
+
+```bash
+python3 tools/verify_bundle.py <downloaded.zip>
+```
+
+The bundle validation script requires a downloaded ZIP file as its argument.
+
+## Submission Artifacts
+
+The repository includes:
+
+- iOS application source code
+- Backend source code
+- Sample 3D scan assets
+- API documentation
+- Docker Compose configuration
+- Backend upload trace (`trace.json`)
+
+A separate screen recording demonstrates the upload, interruption, resume, download, and 3D viewing workflow under the constrained network profile.
+
+## Notes
+
+- No LiDAR sensor or external scanning hardware is required.
+- The sample scan is used to demonstrate the complete workflow.
+- Original scan assets are preserved in the lossless ZIP archive.
+- The backend checksum verification streams object data instead of loading the entire object into memory.
+
+## Author
+
+**Mora Hakim**
+
+GitHub: https://github.com/morahakim/RiseScan
